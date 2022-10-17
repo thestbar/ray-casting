@@ -80,6 +80,8 @@ public class MainScreen implements Screen {
         // Initialize player collider (circle)
         float playerRadius = fitViewport.getWorldHeight() / (fitViewport.getWorldHeight() * 0.1f);
         playerCollider = new Circle(0, 0, playerRadius);
+
+        // Initialize tile colliders
     }
 
     @Override
@@ -124,11 +126,7 @@ public class MainScreen implements Screen {
 //        debugLabel.setText("Debug Label\n\t" + "Viewport Width: " + fitViewport.getScreenWidth() +
 //                "\n\tViewport Height: " + fitViewport.getScreenHeight() + "\n\tViewport Aspect Ratio: " +
 //                1.0f * fitViewport.getScreenWidth() / fitViewport.getScreenHeight());
-        debugLabel.setText("Player Direction Angle is " + playerDirectionAngle +
-                "\nPlayer factor of movement on y axis is " + Math.sin(Math.toRadians(playerDirectionAngle)) +
-                "\nOpposite direction Angle is " + (playerDirectionAngle + 180) +
-                "\nPlayer factor of opposite movement on y axis is " + Math.sin(Math.toRadians(playerDirectionAngle + 180)) +
-                "\nSlope = " + Math.tan(Math.toRadians(playerDirectionAngle)));
+        debugLabel.setText("Grid width = " + GridSetup.GRID_WIDTH + "\nGrid height = " + GridSetup.GRID_HEIGHT);
 
         // Apply viewport for GUI
         screenViewport.apply();

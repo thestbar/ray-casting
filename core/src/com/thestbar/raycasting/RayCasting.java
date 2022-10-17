@@ -46,7 +46,7 @@ public class RayCasting extends Game {
 		// Initialize skin item
 		skin = new Skin(Gdx.files.internal("ui/uiskin.json"));
 
-		this.setScreen(new MainScreen(this));
+		this.setScreen(new GameScreen(this));
 	}
 
 	@Override
