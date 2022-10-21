@@ -1,55 +1,42 @@
 package com.thestbar.raycasting;
 
-import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
-import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.math.Interpolation;
 import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.scenes.scene2d.Stage;
-import com.badlogic.gdx.scenes.scene2d.ui.Label;
-import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.utils.ScreenUtils;
-import com.badlogic.gdx.utils.viewport.FitViewport;
-import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import jdk.jfr.Timespan;
 
 public class GameScreen implements Screen {
     private final RayCasting game;
     private OrthographicCamera camera;
-    // Viewport used for game world
-    private float playerX;
-    private float playerY;
-    private float playerDeltaX;
-    private float playerDeltaY;
-    private float playerAngle;
-    private float playerRadius;
-    private int mapX = 8;
-    private int mapY = 8;
-    private int mapS = 64;
-    private int[] map = {
-            1,1,1,1,1,1,1,1,
-            1,0,0,1,0,0,0,1,
-            1,0,0,1,0,0,0,1,
-            1,0,0,1,0,0,0,1,
-            1,0,0,0,0,0,0,1,
-            1,0,0,0,0,1,0,1,
-            1,0,0,0,0,0,0,1,
-            1,1,1,1,1,1,1,1
-    };
+
+    private Vector2 player = new Vector2(0, 0);
+    private float playerMovementSpeed = 300;
+    private Vector2 mapSize = new Vector2(32, 30);
+    private Vector2 cellSize = new Vector2(32, 32);
+    private int[] map = new int[(int)(mapSize.x * mapSize.y)];
+
+    private Vector2 mouse;
+    private boolean isDrawingLineBetweenPlayerAndMouse;
+
 
     public GameScreen(RayCasting game) {
         this.game = game;
+//        camera = new OrthographicCamera();
         camera = new OrthographicCamera();
+        // This fixes the problem were the input handling system counts
+        // from top left when the draw is happening from bottom left
+        // While rendering need to set projection matrix of sprite batch
+        // to the matrix of the camera!
+        camera.setToOrtho(true);
 
         // initialize player settings
-        playerX = 300;
-        playerY = 300;
-        playerRadius = 8;
-        playerAngle = 0;
-        playerDeltaX = (float)Math.cos(playerAngle) * 5;
-        playerDeltaY = (float)Math.sin(playerAngle) * 5;
+        mouse = new Vector2();
+        isDrawingLineBetweenPlayerAndMouse = false;
     }
 
     @Override
@@ -57,166 +44,138 @@ public class GameScreen implements Screen {
 
     }
 
-    private void input() {
-        if(Gdx.input.isKeyPressed(Input.Keys.A)) {
-            playerAngle -= 0.1;
-            if(playerAngle < 0) playerAngle += 2 * (float)Math.PI;
-            playerDeltaX = (float)Math.cos(playerAngle) * 5;
-            playerDeltaY = (float)Math.sin(playerAngle) * 5;
-        }
-        if(Gdx.input.isKeyPressed(Input.Keys.D)) {
-            playerAngle += 0.1;
-            if(playerAngle > 2 * (float)Math.PI) playerAngle -= 2 * (float)Math.PI;
-            playerDeltaX = (float)Math.cos(playerAngle) * 5;
-            playerDeltaY = (float)Math.sin(playerAngle) * 5;
-        }
-        if(Gdx.input.isKeyPressed(Input.Keys.W)) {
-            playerX += playerDeltaX;
-            playerY += playerDeltaY;
-        }
-        if(Gdx.input.isKeyPressed(Input.Keys.S)) {
-            playerX -= playerDeltaX;
-            playerY -= playerDeltaY;
-        }
-    }
+    private void input(float deltaTime) {
+        mouse = new Vector2(Gdx.input.getX(), Gdx.input.getY());
+        Vector2 cell = new Vector2((float)Math.floor(mouse.x / cellSize.x),
+                (float)Math.floor(mouse.y / cellSize.y));
 
-    private void drawPlayer() {
-        game.batch.begin();
-        game.drawer.setColor(Color.YELLOW);
-        game.drawer.filledCircle(playerX, playerY, playerRadius);
-        game.batch.end();
+        // Paint with right mouse button "solid" tiles
+        if(Gdx.input.isTouched()) map[(int)(cell.y * mapSize.x + cell.x)] = 1;
 
-        // draw direction line
-        game.batch.begin();
-        game.drawer.setColor(Color.YELLOW);
-        game.drawer.line(playerX,
-                playerY,
-                playerX + playerDeltaX * 5,
-                playerY + playerDeltaY * 5, 3);
-        game.batch.end();
-    }
+        // Move "player" position
+        if(Gdx.input.isKeyPressed(Input.Keys.W)) player.y -= playerMovementSpeed * deltaTime;
+        if(Gdx.input.isKeyPressed(Input.Keys.S)) player.y += playerMovementSpeed * deltaTime;
+        if(Gdx.input.isKeyPressed(Input.Keys.A)) player.x -= playerMovementSpeed * deltaTime;
+        if(Gdx.input.isKeyPressed(Input.Keys.D)) player.x += playerMovementSpeed * deltaTime;
 
-    private void drawMap2D() {
-        int x, y, xo, yo;
-        for(y = mapY - 1; y >= 0; y--) {
-            for(x = mapX - 1; x >= 0; x--) {
-                // if this is a wall then draw it as white
-                // else draw the tile as black
-                if(map[y * mapX + x] == 1) {
-                    game.drawer.setColor(Color.WHITE);
-                }
-                else {
-                    game.drawer.setColor(Color.BLACK);
-                }
-                xo = x * mapS;
-                yo = y * mapS;
-                game.batch.begin();
-                Rectangle rectangle = new Rectangle( x + xo, 512 - y - yo - mapS, mapS, mapS);
-                game.drawer.filledRectangle(rectangle);
-                game.batch.end();
-            }
-        }
-    }
-
-    private void drawRays3D() {
-        int ray, mapPositionX, mapPositionY, mapPosition, depthOfField;
-        float rayX = 0, rayY = 0, rayAngle = playerAngle, xOffset = 0, yOffset = 0;
-        for(ray = 0; ray < 1; ray++) {
-            // Check Horizontal Lines - Rays
-            depthOfField = 0;
-            float angleTan = -1 / (float)Math.tan(rayAngle);
-            // need to now if the ray is looking up or down
-            // we know that by checking the angle of the ray
-            // if ray angle > PI then it looks down
-            if(rayAngle > Math.PI) { // looking down
-                // we need to round the y position of the ray to
-                // the nearest 64's value
-                // 1) divide the value by 64 (bit shifting 6-down)
-                // 2) multiply by 64 (bit shifting 6-up)
-                // 3) subtract a small number for accuracy
-                rayY = (((int)playerY >> 6) << 6) - 0.0001f;
-                // ray's x position is the distance between the
-                // player's and ray's y position multiplied by
-                // the inverse tangent of the angle of the ray
-                // plus the x position of the player
-                rayX = (playerY - rayY) * angleTan + playerX;
-                // when we find the ray's 1st hit position then
-                // we need to find the next x and y offset
-                // yOffset is found by subtracting 64 units
-                // xOffset is xOffset multiplied by inverse
-                // tangent of the angle of the ray
-                yOffset = -64;
-                xOffset = -yOffset * angleTan;
-            }
-            if(rayAngle < Math.PI) { // looking up
-                // ray y position is the same but instead of
-                // subtracting a small number we add value 64
-                rayY = (((int)playerY >> 6) << 6) + 64;
-                // everything else is the same except for that
-                // the y offset is positive instead of negative
-                rayX = (playerY - rayY) * angleTan + playerX;
-                yOffset = 64;
-                xOffset = -yOffset * angleTan;
-            }
-            if(rayAngle == 0 || rayAngle == Math.PI) { // looking straight left or right
-                // if it looks horizontally this means that
-                // it will never hit a wall, so we have to
-                // add a maximum field of view to stop checking
-                rayX = playerX;
-                rayY = playerY;
-                depthOfField = 8;
-            }
-            while(depthOfField < 8) {
-                // we know the large coordinates where the ray will hit
-                // the wall, but we need to know where that is in the map array
-                // 1) take ray's x position and divide it by 64
-                // 2) set that to find the position in the maps array
-                mapPositionX = (int) rayX >> 6;
-                mapPositionY = (int) rayY >> 6;
-                mapPosition = mapPositionY * mapX + mapPositionX;
-                // if map position is less than the array size then we can check it
-                // inside the map and if the value is 1 then there is a wall there
-                if(mapPosition < mapX * mapY && map[mapPosition] == 1) { // hit wall
-                    depthOfField = 8;
-                }
-                else { // did not hit wall
-                    // check next horizontal line by adding x and y offset
-                    rayX += xOffset;
-                    rayY += yOffset;
-                    depthOfField++; // go to next line
-                }
-                // draw ray to screen
-                game.batch.begin();
-                game.drawer.setColor(Color.GREEN);
-                game.drawer.line(playerX, playerY, rayX, rayY);
-                game.batch.end();
-            }
-        }
+        // If space is pressed then enable/disable line between player and mouse
+        if(Gdx.input.isKeyJustPressed(Input.Keys.SPACE))
+            isDrawingLineBetweenPlayerAndMouse = !isDrawingLineBetweenPlayerAndMouse;
     }
 
     @Override
     public void render(float delta) {
-        ScreenUtils.clear(0.3f, 0.3f, 0.3f, 1);
-        // Apply viewport for game world
-//        fitViewport.apply();
 
-        // Tell camera to update its matrices
-        camera.update();
-//        game.batch.setProjectionMatrix(camera.combined);
+        ScreenUtils.clear(0, 0, 0, 1);
 
-        // handle player input
-        input();
+        game.batch.setProjectionMatrix(camera.combined);
 
-        // before drawing the player
-        // draw the 2D grid
+        input(delta);
+
+        // Draw Map
         drawMap2D();
 
-        // draw player
-        drawPlayer();
+        // Draw player
+        drawPlayer2D();
 
-        // draw rays
-        drawRays3D();
-//        System.out.println(Math.toDegrees(playerAngle));
+        // Draw mouse
+        drawMouse2D();
+
+        // Cast ray
+        castRaySlowAlgo();
+
+        // Draw line between player and mouse
+        drawLineBetweenPlayerAndMouse2D();
+    }
+
+    void castRaySlowAlgo() {
+        Vector2 startPos = new Vector2(player);
+        Vector2 endPos = new Vector2(mouse);
+        final int RAY_STEPS = 100;
+        // Find the normalized direction of the ray
+        Vector2 dir = endPos.cpy().sub(startPos).nor();
+        // Find angle from direction vector
+        float angle = (float)(Math.atan2(dir.y, dir.x));
+        // Get the slope of the line that connects the starting
+        // and the ending position of the ray
+        // Line for given x, then y = slope * (x - x0) + y0
+        // where (x0, y0) can be start or end position
+        float slope = (startPos.y - endPos.y) / (startPos.x - endPos.x);
+        // Find the distance between start and end
+        float distance = startPos.dst(endPos);
+        // Break the distance to small pieces
+        // which are going to be the steps
+        float deltaDistance = distance / RAY_STEPS;
+        // For this delta distance, calculate
+        // delta movement on X axis
+        float deltaX = (float)Math.cos(angle) * deltaDistance;
+        // Perform the checks
+        int i = 0;
+        Vector2 intersection = new Vector2();
+        boolean hitWall = false;
+        while(i < RAY_STEPS) {
+            // On each step find the current x position of the ray
+            float currX = startPos.x + deltaX * i;
+            // Using the line's coordinates constructor
+            // find the current y position of the ray
+            float currY = slope * (currX - startPos.x) + startPos.y;
+            // Create a vector for the current position
+            Vector2 point = new Vector2(currX, currY);
+            // Using this vector find the grid position of the ray
+            int gridX = (int)(point.x / cellSize.x);
+            int gridY = (int)(point.y / cellSize.y);
+            int value = map[(int)(gridY * mapSize.x + gridX)];
+            // If value is 1 then ray hit a wall
+            if(value == 1) {
+                hitWall = true;
+                intersection = point;
+                break;
+            }
+            i++;
+        }
+
+        // Draw the ray if wall has been hit
+        if(isDrawingLineBetweenPlayerAndMouse && hitWall) {
+            game.batch.begin();
+            game.drawer.setColor(Color.YELLOW);
+            game.drawer.circle(intersection.x, intersection.y, cellSize.x / 4);
+            game.batch.end();
+        }
+    }
+
+    void drawMap2D() {
+        for(int y = 0; y < mapSize.y; y++) {
+            for(int x = 0; x < mapSize.x; x++) {
+                int cell = map[(int) (y * mapSize.x + x)];
+                game.batch.begin();
+                // If cell has value 1 draw a color inside it
+                if(cell == 1)
+                    game.drawer.filledRectangle(x * cellSize.x, y * cellSize.y, cellSize.x, cellSize.y, Color.BLUE);
+                // Draw cell boundary
+                game.drawer.rectangle(x * cellSize.x, y * cellSize.y, cellSize.x, cellSize.y, Color.DARK_GRAY);
+                game.batch.end();
+            }
+        }
+    }
+
+    void drawPlayer2D() {
+        game.batch.begin();
+        game.drawer.filledCircle(player, cellSize.x / 4, Color.RED);
+        game.batch.end();
+    }
+
+    void drawMouse2D() {
+        game.batch.begin();
+        game.drawer.filledCircle(mouse, cellSize.x / 4, Color.GREEN);
+        game.batch.end();
+    }
+
+    void drawLineBetweenPlayerAndMouse2D() {
+        if(isDrawingLineBetweenPlayerAndMouse) {
+            game.batch.begin();
+            game.drawer.line(player, mouse, Color.WHITE);
+            game.batch.end();
+        }
     }
 
     @Override

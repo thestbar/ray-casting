@@ -10,7 +10,7 @@ public class DesktopLauncher {
 		Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
 		config.setForegroundFPS(60);
 		config.setTitle("RayCasting");
-		config.setWindowedMode(1024, 512);
+		config.setWindowedMode(1024, 960);
 		new Lwjgl3Application(new RayCasting(), config);
 	}
 }
