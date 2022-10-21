@@ -22,12 +22,15 @@ public class GameScreen implements Screen {
 
     private Vector2 mouse;
     private boolean isDrawingLineBetweenPlayerAndMouse;
+    private final int NUM_OF_RAYS = 1000;
+    private final int RAY_STEPS = 1000;
+    private final float FOV = 80;
 
 
     public GameScreen(RayCasting game) {
         this.game = game;
-//        camera = new OrthographicCamera();
         camera = new OrthographicCamera();
+
         // This fixes the problem were the input handling system counts
         // from top left when the draw is happening from bottom left
         // While rendering need to set projection matrix of sprite batch
@@ -81,34 +84,54 @@ public class GameScreen implements Screen {
         // Draw mouse
         drawMouse2D();
 
-        // Cast ray
-        castRaySlowAlgo();
+        // Cast rays
+        // When you know the origin point the length of the line and the direction
+        // you can find the position of the point of the line by the formula below
+        // (x, y) = (x1 + a * l, y1 + b * l)
+        // Where l is the length of the line
+        // x1, y1 are the coordinates of the starting point
+        // a, b are the coordinates of the direction vector
+        float length = mouse.dst(player);
+        Vector2 currRayDir = mouse.cpy().sub(player).nor().rotateDeg(-FOV / 2);
+        final float rayStep = FOV / NUM_OF_RAYS;
+        for(int i = 0; i < NUM_OF_RAYS; i++) {
+            Vector2 rayEndPoint = new Vector2(player.x + length * currRayDir.x,
+                    player.y + length * currRayDir.y);
+            castRaySlowAlgo(player, rayEndPoint);
+            currRayDir.rotateDeg(rayStep);
+        }
 
         // Draw line between player and mouse
         drawLineBetweenPlayerAndMouse2D();
     }
 
-    void castRaySlowAlgo() {
-        Vector2 startPos = new Vector2(player);
-        Vector2 endPos = new Vector2(mouse);
-        final int RAY_STEPS = 100;
+    void castRaySlowAlgo(Vector2 sPos, Vector2 ePos) {
+        Vector2 startPos = new Vector2(sPos);
+        Vector2 endPos = new Vector2(ePos);
+
         // Find the normalized direction of the ray
         Vector2 dir = endPos.cpy().sub(startPos).nor();
+
         // Find angle from direction vector
         float angle = (float)(Math.atan2(dir.y, dir.x));
+
         // Get the slope of the line that connects the starting
         // and the ending position of the ray
         // Line for given x, then y = slope * (x - x0) + y0
         // where (x0, y0) can be start or end position
         float slope = (startPos.y - endPos.y) / (startPos.x - endPos.x);
+
         // Find the distance between start and end
         float distance = startPos.dst(endPos);
+
         // Break the distance to small pieces
         // which are going to be the steps
         float deltaDistance = distance / RAY_STEPS;
+
         // For this delta distance, calculate
         // delta movement on X axis
         float deltaX = (float)Math.cos(angle) * deltaDistance;
+
         // Perform the checks
         int i = 0;
         Vector2 intersection = new Vector2();
@@ -116,23 +139,42 @@ public class GameScreen implements Screen {
         while(i < RAY_STEPS) {
             // On each step find the current x position of the ray
             float currX = startPos.x + deltaX * i;
+
             // Using the line's coordinates constructor
             // find the current y position of the ray
             float currY = slope * (currX - startPos.x) + startPos.y;
+
             // Create a vector for the current position
             Vector2 point = new Vector2(currX, currY);
+
             // Using this vector find the grid position of the ray
             int gridX = (int)(point.x / cellSize.x);
             int gridY = (int)(point.y / cellSize.y);
-            int value = map[(int)(gridY * mapSize.x + gridX)];
-            // If value is 1 then ray hit a wall
-            if(value == 1) {
-                hitWall = true;
-                intersection = point;
-                break;
+
+            // If it goes out of screen for X or Y axis stop going further
+            if(gridX < 0) gridX = 0; if(gridX > mapSize.x - 1) gridX = (int)mapSize.x - 1;
+            if(gridY < 0) gridY = 0; if(gridY > mapSize.y - 1) gridY = (int)mapSize.y - 1;
+
+            int cellPos = (int)(gridY * mapSize.x + gridX);
+            if(cellPos >= 0 && cellPos <= mapSize.x * mapSize.y - 1) {
+                int value = map[cellPos];
+                // If value is 1 then ray hit a wall
+                if(value == 1) {
+                    hitWall = true;
+                    intersection = point;
+                    break;
+                }
+                else {
+                    intersection = point;
+                }
+                i++;
             }
-            i++;
         }
+        // Draw ray
+        game.batch.begin();
+        game.drawer.setColor(Color.WHITE);
+        game.drawer.line(startPos, intersection);
+        game.batch.end();
 
         // Draw the ray if wall has been hit
         if(isDrawingLineBetweenPlayerAndMouse && hitWall) {
@@ -173,7 +215,7 @@ public class GameScreen implements Screen {
     void drawLineBetweenPlayerAndMouse2D() {
         if(isDrawingLineBetweenPlayerAndMouse) {
             game.batch.begin();
-            game.drawer.line(player, mouse, Color.WHITE);
+            game.drawer.line(player, mouse, Color.GREEN);
             game.batch.end();
         }
     }
