@@ -5,10 +5,8 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
-import com.badlogic.gdx.math.Interpolation;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.ScreenUtils;
-import jdk.jfr.Timespan;
 
 public class GameScreen implements Screen {
     private final RayCasting game;
@@ -19,12 +17,13 @@ public class GameScreen implements Screen {
     private Vector2 mapSize = new Vector2(32, 30);
     private Vector2 cellSize = new Vector2(32, 32);
     private int[] map = new int[(int)(mapSize.x * mapSize.y)];
-
     private Vector2 mouse;
+    private Vector2 midRayEndPos;
     private boolean isDrawingLineBetweenPlayerAndMouse;
-    private final int NUM_OF_RAYS = 1000;
+    private final int NUM_OF_RAYS = 100;
     private final int RAY_STEPS = 1000;
     private final float FOV = 80;
+    private final float DRAW_DISTANCE = 400;
 
 
     public GameScreen(RayCasting game) {
@@ -49,6 +48,14 @@ public class GameScreen implements Screen {
 
     private void input(float deltaTime) {
         mouse = new Vector2(Gdx.input.getX(), Gdx.input.getY());
+        // Normalize mouse position, in order to have
+        // fixed distance from player to the end of the rays
+        Vector2 mouseDirNormalized = mouse.cpy().sub(player).nor();
+        Vector2 mouseDir = mouseDirNormalized.cpy().scl(DRAW_DISTANCE);
+        midRayEndPos = new Vector2(player.x + DRAW_DISTANCE * mouseDir.x,
+                player.y + DRAW_DISTANCE * mouseDir.y);
+
+
         Vector2 cell = new Vector2((float)Math.floor(mouse.x / cellSize.x),
                 (float)Math.floor(mouse.y / cellSize.y));
 
@@ -56,10 +63,25 @@ public class GameScreen implements Screen {
         if(Gdx.input.isTouched()) map[(int)(cell.y * mapSize.x + cell.x)] = 1;
 
         // Move "player" position
-        if(Gdx.input.isKeyPressed(Input.Keys.W)) player.y -= playerMovementSpeed * deltaTime;
-        if(Gdx.input.isKeyPressed(Input.Keys.S)) player.y += playerMovementSpeed * deltaTime;
-        if(Gdx.input.isKeyPressed(Input.Keys.A)) player.x -= playerMovementSpeed * deltaTime;
-        if(Gdx.input.isKeyPressed(Input.Keys.D)) player.x += playerMovementSpeed * deltaTime;
+        if(Gdx.input.isKeyPressed(Input.Keys.W)) {
+            player.x += mouseDirNormalized.x * playerMovementSpeed * deltaTime;
+            player.y += mouseDirNormalized.y * playerMovementSpeed * deltaTime;
+        }
+        else if(Gdx.input.isKeyPressed(Input.Keys.S)) {
+            Vector2 behindFromMouseDirNorm = mouseDirNormalized.cpy().rotateDeg(180);
+            player.x += behindFromMouseDirNorm.x * playerMovementSpeed * deltaTime;
+            player.y += behindFromMouseDirNorm.y * playerMovementSpeed * deltaTime;
+        }
+        if(Gdx.input.isKeyPressed(Input.Keys.A)) {
+            Vector2 leftFromMouseDirNorm = mouseDirNormalized.cpy().rotateDeg(-90);
+            player.x += leftFromMouseDirNorm.x * playerMovementSpeed * deltaTime;
+            player.y += leftFromMouseDirNorm.y * playerMovementSpeed * deltaTime;
+        }
+        else if(Gdx.input.isKeyPressed(Input.Keys.D)) {
+            Vector2 rightFromMouseDirNorm = mouseDirNormalized.cpy().rotateDeg(90);
+            player.x += rightFromMouseDirNorm.x * playerMovementSpeed * deltaTime;
+            player.y += rightFromMouseDirNorm.y * playerMovementSpeed * deltaTime;
+        }
 
         // If space is pressed then enable/disable line between player and mouse
         if(Gdx.input.isKeyJustPressed(Input.Keys.SPACE))
@@ -91,12 +113,12 @@ public class GameScreen implements Screen {
         // Where l is the length of the line
         // x1, y1 are the coordinates of the starting point
         // a, b are the coordinates of the direction vector
-        float length = mouse.dst(player);
-        Vector2 currRayDir = mouse.cpy().sub(player).nor().rotateDeg(-FOV / 2);
+
+        Vector2 currRayDir = midRayEndPos.cpy().sub(player).nor().rotateDeg(-FOV / 2);
         final float rayStep = FOV / NUM_OF_RAYS;
         for(int i = 0; i < NUM_OF_RAYS; i++) {
-            Vector2 rayEndPoint = new Vector2(player.x + length * currRayDir.x,
-                    player.y + length * currRayDir.y);
+            Vector2 rayEndPoint = new Vector2(player.x + DRAW_DISTANCE * currRayDir.x,
+                    player.y + DRAW_DISTANCE * currRayDir.y);
             castRaySlowAlgo(player, rayEndPoint);
             currRayDir.rotateDeg(rayStep);
         }
