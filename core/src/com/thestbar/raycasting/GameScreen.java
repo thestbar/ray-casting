@@ -5,27 +5,30 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.ScreenUtils;
+import com.thestbar.raycasting.util.CenteredRectangle;
 
 public class GameScreen implements Screen {
     private final RayCasting game;
     private OrthographicCamera camera;
 
-    private Vector2 player = new Vector2(0, 0);
-    private float playerMovementSpeed = 300;
+    private Vector2 player = new Vector2(300, 300);
+    private float playerMovementSpeed = 100;
     private Vector2 mapSize = new Vector2(32, 30);
-    private Vector2 cellSize = new Vector2(32, 32);
+    private Vector2 cellSize = new Vector2(20, 20);
     private int[] map = new int[(int)(mapSize.x * mapSize.y)];
     private Vector2 mouse;
     private Vector2 midRayEndPos;
     private boolean isDrawingLineBetweenPlayerAndMouse;
     private final int NUM_OF_RAYS = 100;
     private final int RAY_STEPS = 1000;
-    private final float FOV = 80;
-    private final float DRAW_DISTANCE = 400;
+    private final float FOV = 60;
+    private final float DRAW_DISTANCE = 600;
     private float fpsCounterInterval = 0;
     private final float UPDATE_FPS_INTERVAL = 1;
+    private float[] rayDistances = new float[NUM_OF_RAYS];
 
 
 
@@ -42,6 +45,21 @@ public class GameScreen implements Screen {
         // initialize player settings
         mouse = new Vector2();
         isDrawingLineBetweenPlayerAndMouse = false;
+
+        // Initialize map
+        for(int i = 0; i < mapSize.x; i++) {
+            map[i] = 1;
+        }
+        for(int i = (int)(mapSize.x * (mapSize.y - 1));
+            i < (int)(mapSize.x * mapSize.y); i++) {
+            map[i] = 1;
+        }
+        for(int i = 1; i < mapSize.y; i++) {
+            int leftBoundIndex = (int)(i * mapSize.x);
+            int rightBoundIndex = (int)(i * mapSize.x + mapSize.y + 1);
+            map[leftBoundIndex] = 1;
+            map[rightBoundIndex] = 1;
+        }
     }
 
     @Override
@@ -124,8 +142,23 @@ public class GameScreen implements Screen {
         for(int i = 0; i < NUM_OF_RAYS; i++) {
             Vector2 rayEndPoint = new Vector2(player.x + DRAW_DISTANCE * currRayDir.x,
                     player.y + DRAW_DISTANCE * currRayDir.y);
-            castRaySlowAlgo(player, rayEndPoint);
+            castRaySlowAlgo(player, rayEndPoint, i, FOV / 2 - rayStep * i);
             currRayDir.rotateDeg(rayStep);
+        }
+
+        // Draw 3D screen
+        for(int i = 0; i < NUM_OF_RAYS; i++) {
+            float currRayDist = rayDistances[i];
+            float pixelsOfEachCol = Gdx.graphics.getWidth() / 2f / NUM_OF_RAYS;
+            float alpha = 1 - currRayDist / DRAW_DISTANCE;
+            float rectangleHeight = alpha * Gdx.graphics.getHeight();
+            float xOffset = Gdx.graphics.getWidth() / 2f;
+            Rectangle rectangle = new CenteredRectangle(xOffset + i * pixelsOfEachCol + pixelsOfEachCol / 2,
+                    Gdx.graphics.getHeight() / 2f, pixelsOfEachCol, rectangleHeight);
+            game.batch.begin();
+            game.drawer.setColor(new Color(1, 1, 1, alpha));
+            game.drawer.filledRectangle(rectangle);
+            game.batch.end();
         }
 
         // Draw line between player and mouse
@@ -142,7 +175,10 @@ public class GameScreen implements Screen {
             fpsCounterInterval += delta;
         }
     }
-    void castRaySlowAlgo(Vector2 sPos, Vector2 ePos) {
+    void castRaySlowAlgo(Vector2 sPos, Vector2 ePos, int index, float angleBetweenCameraAndRay) {
+        // Index represents the index of
+        // the current ray that is calculated
+
         Vector2 startPos = new Vector2(sPos);
         Vector2 endPos = new Vector2(ePos);
 
@@ -207,6 +243,16 @@ public class GameScreen implements Screen {
                 i++;
             }
         }
+
+        // Store the distance between the starting position
+        // and the intersection on the specific index in the array
+        // In order to fix fish-eye-effect instead of using
+        // the euclidean distance we have to multiply it
+        // by the cosine of the angle between the current ray
+        // and the direction of the camera
+        rayDistances[index] = intersection.dst(startPos) *
+                (float)Math.cos(Math.toRadians(angleBetweenCameraAndRay));
+
         // Draw ray
         game.batch.begin();
         game.drawer.setColor(Color.WHITE);

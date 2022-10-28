@@ -11,7 +11,7 @@ public class DesktopLauncher {
 		config.setForegroundFPS(0);
 		config.useVsync(false);
 		config.setTitle("RayCasting");
-		config.setWindowedMode(1024, 960);
+		config.setWindowedMode(1280, 600);
 		new Lwjgl3Application(new RayCasting(), config);
 	}
 }
