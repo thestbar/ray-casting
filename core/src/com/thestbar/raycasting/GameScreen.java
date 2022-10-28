@@ -24,6 +24,9 @@ public class GameScreen implements Screen {
     private final int RAY_STEPS = 1000;
     private final float FOV = 80;
     private final float DRAW_DISTANCE = 400;
+    private float fpsCounterInterval = 0;
+    private final float UPDATE_FPS_INTERVAL = 1;
+
 
 
     public GameScreen(RayCasting game) {
@@ -90,6 +93,8 @@ public class GameScreen implements Screen {
 
     @Override
     public void render(float delta) {
+        // Set FPS counter in Desktop title
+        countFps(delta);
 
         ScreenUtils.clear(0, 0, 0, 1);
 
@@ -127,6 +132,16 @@ public class GameScreen implements Screen {
         drawLineBetweenPlayerAndMouse2D();
     }
 
+    void countFps(float delta) {
+        int fps = (int)(1 / delta);
+        if(fpsCounterInterval >= UPDATE_FPS_INTERVAL) {
+            Gdx.graphics.setTitle("RayCasting - FPS: " + fps);
+            fpsCounterInterval = 0;
+        }
+        else {
+            fpsCounterInterval += delta;
+        }
+    }
     void castRaySlowAlgo(Vector2 sPos, Vector2 ePos) {
         Vector2 startPos = new Vector2(sPos);
         Vector2 endPos = new Vector2(ePos);
@@ -244,6 +259,7 @@ public class GameScreen implements Screen {
 
     @Override
     public void resize(int width, int height) {
+
     }
 
     @Override
