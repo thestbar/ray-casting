@@ -25,7 +25,7 @@ public class GameScreen implements Screen {
     private Vector2 midRayEndPos;
     private boolean isDrawingLineBetweenPlayerAndMouse;
     private final int NUM_OF_RAYS = 1000;
-    private final int RAY_STEPS = 10;
+    private final int RAY_STEPS = 1000;
     private final float FOV = 30;
     private final float DRAW_DISTANCE = 500;
     private float fpsCounterInterval = 0;
@@ -82,15 +82,18 @@ public class GameScreen implements Screen {
         // Paint with right mouse button "solid" tiles
         if(Gdx.input.isTouched()) map[(int)(cell.y * mapSize.x + cell.x)] = 1;
 
+        // Get a copy of player's current position
+        Vector2 playerCpy = player.cpy();
+
         // Move "player" position
         if(Gdx.input.isKeyPressed(Input.Keys.W)) {
-            player.x += playerDir.x * playerMovementSpeed * deltaTime;
-            player.y += playerDir.y * playerMovementSpeed * deltaTime;
+            playerCpy.x += playerDir.x * playerMovementSpeed * deltaTime;
+            playerCpy.y += playerDir.y * playerMovementSpeed * deltaTime;
         }
         else if(Gdx.input.isKeyPressed(Input.Keys.S)) {
             Vector2 behindFromPlayerDir = playerDir.cpy().rotateDeg(180);
-            player.x += behindFromPlayerDir.x * playerMovementSpeed * deltaTime;
-            player.y += behindFromPlayerDir.y * playerMovementSpeed * deltaTime;
+            playerCpy.x += behindFromPlayerDir.x * playerMovementSpeed * deltaTime;
+            playerCpy.y += behindFromPlayerDir.y * playerMovementSpeed * deltaTime;
         }
         if(Gdx.input.isKeyPressed(Input.Keys.A)) {
             playerDir.rotateDeg(-deltaTime * playerRotationMovementSpeed);
@@ -100,14 +103,16 @@ public class GameScreen implements Screen {
         }
         if(Gdx.input.isKeyPressed(Input.Keys.LEFT)) {
             Vector2 leftFromPlayerDir = playerDir.cpy().rotateDeg(-90);
-            player.x += leftFromPlayerDir.x * playerMovementSpeed * deltaTime;
-            player.y += leftFromPlayerDir.y * playerMovementSpeed * deltaTime;
+            playerCpy.x += leftFromPlayerDir.x * playerMovementSpeed * deltaTime;
+            playerCpy.y += leftFromPlayerDir.y * playerMovementSpeed * deltaTime;
         }
         else if(Gdx.input.isKeyPressed(Input.Keys.RIGHT)) {
             Vector2 rightFromPlayerDir = playerDir.cpy().rotateDeg(90);
-            player.x += rightFromPlayerDir.x * playerMovementSpeed * deltaTime;
-            player.y += rightFromPlayerDir.y * playerMovementSpeed * deltaTime;
+            playerCpy.x += rightFromPlayerDir.x * playerMovementSpeed * deltaTime;
+            playerCpy.y += rightFromPlayerDir.y * playerMovementSpeed * deltaTime;
         }
+
+        detectCollisions(playerCpy);
 
         // If space is pressed then enable/disable line between player and mouse
         if(Gdx.input.isKeyJustPressed(Input.Keys.SPACE))
@@ -154,6 +159,7 @@ public class GameScreen implements Screen {
         // Draw 3D screen
         for(int i = 0; i < NUM_OF_RAYS; i++) {
             float currRayDist = rayDistances[i];
+//            System.out.println(midRayEndPos.dst(player));
             float pixelsOfEachCol = Gdx.graphics.getWidth() / 2f / NUM_OF_RAYS;
             float alpha = 1 - currRayDist / DRAW_DISTANCE;
             float rectangleHeight = alpha * Gdx.graphics.getHeight();
@@ -284,6 +290,42 @@ public class GameScreen implements Screen {
                 // Draw cell boundary
                 game.drawer.rectangle(x * cellSize.x, y * cellSize.y, cellSize.x, cellSize.y, Color.DARK_GRAY);
                 game.batch.end();
+            }
+        }
+    }
+
+    void detectCollisions(Vector2 playerPosition) {
+        // Check if new position is valid
+        // Find the tile that the new position is into
+        // if it is a wall do not let it move
+        Vector2 playerNewPositionCell = new Vector2((float)Math.floor(playerPosition.x / cellSize.x),
+                (float)Math.floor(playerPosition.y / cellSize.y));
+        if(map[(int)(playerNewPositionCell.y * mapSize.x + playerNewPositionCell.x)] == 0) {
+            player = playerPosition;
+        }
+        // If the new position is invalid
+        // Check if only moving left/right is valid
+        else {
+            Vector2 playerPositionCpy = player.cpy();
+            playerPositionCpy.x = playerPosition.x;
+            // Check if position with only x added is valid
+            playerNewPositionCell = new Vector2((float)Math.floor(playerPositionCpy.x / cellSize.x),
+                    (float)Math.floor(playerPositionCpy.y / cellSize.y));
+            if(map[(int)(playerNewPositionCell.y * mapSize.x + playerNewPositionCell.x)] == 0) {
+                player = playerPositionCpy;
+            }
+            // If new position is invalid and
+            // moving left or right is invalid
+            // Check if only moving up/down is valid
+            else {
+                playerPositionCpy = player.cpy();
+                playerPositionCpy.y = playerPosition.y;
+                // Check if position with only y added is valid
+                playerNewPositionCell = new Vector2((float)Math.floor(playerPositionCpy.x / cellSize.x),
+                        (float)Math.floor(playerPositionCpy.y / cellSize.y));
+                if(map[(int)(playerNewPositionCell.y * mapSize.x + playerNewPositionCell.x)] == 0) {
+                    player = playerPositionCpy;
+                }
             }
         }
     }
