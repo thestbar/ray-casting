@@ -15,17 +15,19 @@ public class GameScreen implements Screen {
     private OrthographicCamera camera;
 
     private Vector2 player = new Vector2(300, 300);
-    private float playerMovementSpeed = 100;
+    private Vector2 playerDir = new Vector2(1, 0);
+    private float playerMovementSpeed = 150;
+    private float playerRotationMovementSpeed = 200;
     private Vector2 mapSize = new Vector2(32, 30);
     private Vector2 cellSize = new Vector2(20, 20);
     private int[] map = new int[(int)(mapSize.x * mapSize.y)];
     private Vector2 mouse;
     private Vector2 midRayEndPos;
     private boolean isDrawingLineBetweenPlayerAndMouse;
-    private final int NUM_OF_RAYS = 100;
-    private final int RAY_STEPS = 1000;
-    private final float FOV = 60;
-    private final float DRAW_DISTANCE = 600;
+    private final int NUM_OF_RAYS = 1000;
+    private final int RAY_STEPS = 10;
+    private final float FOV = 30;
+    private final float DRAW_DISTANCE = 500;
     private float fpsCounterInterval = 0;
     private final float UPDATE_FPS_INTERVAL = 1;
     private float[] rayDistances = new float[NUM_OF_RAYS];
@@ -71,11 +73,8 @@ public class GameScreen implements Screen {
         mouse = new Vector2(Gdx.input.getX(), Gdx.input.getY());
         // Normalize mouse position, in order to have
         // fixed distance from player to the end of the rays
-        Vector2 mouseDirNormalized = mouse.cpy().sub(player).nor();
-        Vector2 mouseDir = mouseDirNormalized.cpy().scl(DRAW_DISTANCE);
-        midRayEndPos = new Vector2(player.x + DRAW_DISTANCE * mouseDir.x,
-                player.y + DRAW_DISTANCE * mouseDir.y);
-
+        midRayEndPos = new Vector2(player.x + DRAW_DISTANCE * playerDir.x,
+                player.y + DRAW_DISTANCE * playerDir.y);
 
         Vector2 cell = new Vector2((float)Math.floor(mouse.x / cellSize.x),
                 (float)Math.floor(mouse.y / cellSize.y));
@@ -85,23 +84,29 @@ public class GameScreen implements Screen {
 
         // Move "player" position
         if(Gdx.input.isKeyPressed(Input.Keys.W)) {
-            player.x += mouseDirNormalized.x * playerMovementSpeed * deltaTime;
-            player.y += mouseDirNormalized.y * playerMovementSpeed * deltaTime;
+            player.x += playerDir.x * playerMovementSpeed * deltaTime;
+            player.y += playerDir.y * playerMovementSpeed * deltaTime;
         }
         else if(Gdx.input.isKeyPressed(Input.Keys.S)) {
-            Vector2 behindFromMouseDirNorm = mouseDirNormalized.cpy().rotateDeg(180);
-            player.x += behindFromMouseDirNorm.x * playerMovementSpeed * deltaTime;
-            player.y += behindFromMouseDirNorm.y * playerMovementSpeed * deltaTime;
+            Vector2 behindFromPlayerDir = playerDir.cpy().rotateDeg(180);
+            player.x += behindFromPlayerDir.x * playerMovementSpeed * deltaTime;
+            player.y += behindFromPlayerDir.y * playerMovementSpeed * deltaTime;
         }
         if(Gdx.input.isKeyPressed(Input.Keys.A)) {
-            Vector2 leftFromMouseDirNorm = mouseDirNormalized.cpy().rotateDeg(-90);
-            player.x += leftFromMouseDirNorm.x * playerMovementSpeed * deltaTime;
-            player.y += leftFromMouseDirNorm.y * playerMovementSpeed * deltaTime;
+            playerDir.rotateDeg(-deltaTime * playerRotationMovementSpeed);
         }
         else if(Gdx.input.isKeyPressed(Input.Keys.D)) {
-            Vector2 rightFromMouseDirNorm = mouseDirNormalized.cpy().rotateDeg(90);
-            player.x += rightFromMouseDirNorm.x * playerMovementSpeed * deltaTime;
-            player.y += rightFromMouseDirNorm.y * playerMovementSpeed * deltaTime;
+            playerDir.rotateDeg(deltaTime * playerRotationMovementSpeed);
+        }
+        if(Gdx.input.isKeyPressed(Input.Keys.LEFT)) {
+            Vector2 leftFromPlayerDir = playerDir.cpy().rotateDeg(-90);
+            player.x += leftFromPlayerDir.x * playerMovementSpeed * deltaTime;
+            player.y += leftFromPlayerDir.y * playerMovementSpeed * deltaTime;
+        }
+        else if(Gdx.input.isKeyPressed(Input.Keys.RIGHT)) {
+            Vector2 rightFromPlayerDir = playerDir.cpy().rotateDeg(90);
+            player.x += rightFromPlayerDir.x * playerMovementSpeed * deltaTime;
+            player.y += rightFromPlayerDir.y * playerMovementSpeed * deltaTime;
         }
 
         // If space is pressed then enable/disable line between player and mouse
