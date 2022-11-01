@@ -18,19 +18,20 @@ public class GameScreen implements Screen {
     private Vector2 playerDir = new Vector2(1, 0);
     private float playerMovementSpeed = 150;
     private float playerRotationMovementSpeed = 200;
-    private Vector2 mapSize = new Vector2(32, 30);
-    private Vector2 cellSize = new Vector2(20, 20);
+    private Vector2 mapSize = new Vector2(16, 15);
+    private Vector2 cellSize = new Vector2(40, 40);
     private int[] map = new int[(int)(mapSize.x * mapSize.y)];
     private Vector2 mouse;
     private Vector2 midRayEndPos;
     private boolean isDrawingLineBetweenPlayerAndMouse;
-    private final int NUM_OF_RAYS = 1000;
-    private final int RAY_STEPS = 1000;
-    private final float FOV = 30;
-    private final float DRAW_DISTANCE = 500;
+    private final int NUM_OF_RAYS = 50;
+    private final int RAY_STEPS = 200;
+    private final float FOV = 60;
+    private final float DRAW_DISTANCE = 1000;
     private float fpsCounterInterval = 0;
     private final float UPDATE_FPS_INTERVAL = 1;
     private float[] rayDistances = new float[NUM_OF_RAYS];
+    private int[] rayValues = new int[NUM_OF_RAYS];
 
 
 
@@ -49,19 +50,7 @@ public class GameScreen implements Screen {
         isDrawingLineBetweenPlayerAndMouse = false;
 
         // Initialize map
-        for(int i = 0; i < mapSize.x; i++) {
-            map[i] = 1;
-        }
-        for(int i = (int)(mapSize.x * (mapSize.y - 1));
-            i < (int)(mapSize.x * mapSize.y); i++) {
-            map[i] = 1;
-        }
-        for(int i = 1; i < mapSize.y; i++) {
-            int leftBoundIndex = (int)(i * mapSize.x);
-            int rightBoundIndex = (int)(i * mapSize.x + mapSize.y + 1);
-            map[leftBoundIndex] = 1;
-            map[rightBoundIndex] = 1;
-        }
+        initializeMap();
     }
 
     @Override
@@ -152,7 +141,7 @@ public class GameScreen implements Screen {
         for(int i = 0; i < NUM_OF_RAYS; i++) {
             Vector2 rayEndPoint = new Vector2(player.x + DRAW_DISTANCE * currRayDir.x,
                     player.y + DRAW_DISTANCE * currRayDir.y);
-            castRaySlowAlgo(player, rayEndPoint, i, FOV / 2 - rayStep * i);
+            castRaySlowAlgo(player, rayEndPoint, i, rayStep * i);
             currRayDir.rotateDeg(rayStep);
         }
 
@@ -161,13 +150,22 @@ public class GameScreen implements Screen {
             float currRayDist = rayDistances[i];
 //            System.out.println(midRayEndPos.dst(player));
             float pixelsOfEachCol = Gdx.graphics.getWidth() / 2f / NUM_OF_RAYS;
-            float alpha = 1 - currRayDist / DRAW_DISTANCE;
-            float rectangleHeight = alpha * Gdx.graphics.getHeight();
+            float alpha = 1 - (currRayDist / DRAW_DISTANCE);
+            float rectangleHeight = (1 - currRayDist / DRAW_DISTANCE) * Gdx.graphics.getHeight();
             float xOffset = Gdx.graphics.getWidth() / 2f;
             Rectangle rectangle = new CenteredRectangle(xOffset + i * pixelsOfEachCol + pixelsOfEachCol / 2,
                     Gdx.graphics.getHeight() / 2f, pixelsOfEachCol, rectangleHeight);
+            Color color;
+            switch(rayValues[i]) {
+                case 1: { color = new Color(Color.BLUE); break; }
+                case 2: { color = new Color(Color.RED); break; }
+                case 3: { color = new Color(Color.YELLOW); break; }
+                case 4: { color = new Color(Color.GREEN); break; }
+                default: { color = new Color(Color.WHITE); }
+            }
+            color.a = alpha;
             game.batch.begin();
-            game.drawer.setColor(new Color(1, 1, 1, alpha));
+            game.drawer.setColor(color);
             game.drawer.filledRectangle(rectangle);
             game.batch.end();
         }
@@ -243,9 +241,11 @@ public class GameScreen implements Screen {
             if(cellPos >= 0 && cellPos <= mapSize.x * mapSize.y - 1) {
                 int value = map[cellPos];
                 // If value is 1 then ray hit a wall
-                if(value == 1) {
+                if(value > 0) {
                     hitWall = true;
                     intersection = point;
+                    // Save the map value of the current intersection
+                    rayValues[index] = map[cellPos];
                     break;
                 }
                 else {
@@ -287,6 +287,12 @@ public class GameScreen implements Screen {
                 // If cell has value 1 draw a color inside it
                 if(cell == 1)
                     game.drawer.filledRectangle(x * cellSize.x, y * cellSize.y, cellSize.x, cellSize.y, Color.BLUE);
+                else if(cell == 2)
+                    game.drawer.filledRectangle(x * cellSize.x, y * cellSize.y, cellSize.x, cellSize.y, Color.RED);
+                else if(cell == 3)
+                    game.drawer.filledRectangle(x * cellSize.x, y * cellSize.y, cellSize.x, cellSize.y, Color.YELLOW);
+                else if(cell == 4)
+                    game.drawer.filledRectangle(x * cellSize.x, y * cellSize.y, cellSize.x, cellSize.y, Color.GREEN);
                 // Draw cell boundary
                 game.drawer.rectangle(x * cellSize.x, y * cellSize.y, cellSize.x, cellSize.y, Color.DARK_GRAY);
                 game.batch.end();
@@ -347,6 +353,24 @@ public class GameScreen implements Screen {
             game.batch.begin();
             game.drawer.line(player, mouse, Color.GREEN);
             game.batch.end();
+        }
+    }
+
+    void initializeMap() {
+        for(int i = 0; i < mapSize.x; i++) {
+            map[i] = 1;
+        }
+        for(int i = (int)(mapSize.x * (mapSize.y - 1));
+            i < (int)(mapSize.x * mapSize.y); i++) {
+            map[i] = 2;
+        }
+        for(int i = 1; i < mapSize.y; i++) {
+            int leftBoundIndex = (int)(i * mapSize.x);
+            map[leftBoundIndex] = 3;
+        }
+        for(int i = 1; i < mapSize.x - 1; i++) {
+            int rightBoundIndex = (int)(i * mapSize.x + mapSize.y);
+            map[rightBoundIndex] = 4;
         }
     }
 
