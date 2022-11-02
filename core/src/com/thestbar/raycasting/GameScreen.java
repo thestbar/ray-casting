@@ -24,8 +24,8 @@ public class GameScreen implements Screen {
     private Vector2 mouse;
     private Vector2 midRayEndPos;
     private boolean isDrawingLineBetweenPlayerAndMouse;
-    private final int NUM_OF_RAYS = 50;
-    private final int RAY_STEPS = 200;
+    private final int NUM_OF_RAYS = 1000;
+    private final int RAY_STEPS = 1000;
     private final float FOV = 60;
     private final float DRAW_DISTANCE = 1000;
     private float fpsCounterInterval = 0;
@@ -155,6 +155,10 @@ public class GameScreen implements Screen {
             float xOffset = Gdx.graphics.getWidth() / 2f;
             Rectangle rectangle = new CenteredRectangle(xOffset + i * pixelsOfEachCol + pixelsOfEachCol / 2,
                     Gdx.graphics.getHeight() / 2f, pixelsOfEachCol, rectangleHeight);
+            Rectangle ceilingRectangle = new Rectangle(xOffset + i * pixelsOfEachCol,
+                    0, pixelsOfEachCol, (Gdx.graphics.getHeight() - rectangleHeight) / 2f);
+            Rectangle floorRectangle = new Rectangle(xOffset + i * pixelsOfEachCol,
+                    rectangle.y + rectangle.height, pixelsOfEachCol, (Gdx.graphics.getHeight() - rectangleHeight) / 2f);
             Color color;
             switch(rayValues[i]) {
                 case 1: { color = new Color(Color.BLUE); break; }
@@ -167,6 +171,10 @@ public class GameScreen implements Screen {
             game.batch.begin();
             game.drawer.setColor(color);
             game.drawer.filledRectangle(rectangle);
+            game.drawer.setColor(Color.BROWN);
+            game.drawer.filledRectangle(floorRectangle);
+            game.drawer.setColor(Color.CYAN);
+            game.drawer.filledRectangle(ceilingRectangle);
             game.batch.end();
         }
 
