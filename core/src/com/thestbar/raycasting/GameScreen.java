@@ -16,8 +16,8 @@ public class GameScreen implements Screen {
 
     private Vector2 player = new Vector2(300, 300);
     private Vector2 playerDir = new Vector2(1, 0);
-    private float playerMovementSpeed = 150;
-    private float playerRotationMovementSpeed = 200;
+    private float playerMovementSpeed = 100;
+    private float playerRotationMovementSpeed = 150;
     private Vector2 mapSize = new Vector2(16, 15);
     private Vector2 cellSize = new Vector2(40, 40);
     private int[] map = new int[(int)(mapSize.x * mapSize.y)];
@@ -25,15 +25,19 @@ public class GameScreen implements Screen {
     private Vector2 midRayEndPos;
     private boolean isDrawingLineBetweenPlayerAndMouse;
     private final int NUM_OF_RAYS = 1000;
-    private final int RAY_STEPS = 1000;
-    private final float FOV = 60;
-    private final float DRAW_DISTANCE = 1000;
+    private final int RAY_STEPS = 100;
+    private final float FOV = 30;
+    private final float DRAW_DISTANCE = 400;
+    private final float MAX_DISTANCE = 800;
+    /* Gdx.graphics.getHeight() /
+            (float)Math.sin(Gdx.graphics.getHeight() /
+            Math.sqrt(Gdx.graphics.getWidth() * Gdx.graphics.getWidth() +
+            Gdx.graphics.getHeight() * Gdx.graphics.getHeight())) - 500
+    */
     private float fpsCounterInterval = 0;
     private final float UPDATE_FPS_INTERVAL = 1;
     private float[] rayDistances = new float[NUM_OF_RAYS];
     private int[] rayValues = new int[NUM_OF_RAYS];
-
-
 
     public GameScreen(RayCasting game) {
         this.game = game;
@@ -141,17 +145,19 @@ public class GameScreen implements Screen {
         for(int i = 0; i < NUM_OF_RAYS; i++) {
             Vector2 rayEndPoint = new Vector2(player.x + DRAW_DISTANCE * currRayDir.x,
                     player.y + DRAW_DISTANCE * currRayDir.y);
-            castRaySlowAlgo(player, rayEndPoint, i, rayStep * i);
+//            castRaySlowAlgo(player, rayEndPoint, i, rayStep * i);
+            castRayDDAAlgo(player, rayEndPoint, i, rayStep * i);
             currRayDir.rotateDeg(rayStep);
         }
 
         // Draw 3D screen
         for(int i = 0; i < NUM_OF_RAYS; i++) {
             float currRayDist = rayDistances[i];
-//            System.out.println(midRayEndPos.dst(player));
             float pixelsOfEachCol = Gdx.graphics.getWidth() / 2f / NUM_OF_RAYS;
-            float alpha = 1 - (currRayDist / DRAW_DISTANCE);
-            float rectangleHeight = (1 - currRayDist / DRAW_DISTANCE) * Gdx.graphics.getHeight();
+            float alpha = 1 - (currRayDist / MAX_DISTANCE);
+//            float alpha = 1 - (currRayDist / DRAW_DISTANCE);
+            float rectangleHeight = (1 - currRayDist / MAX_DISTANCE) * Gdx.graphics.getHeight();
+//            float rectangleHeight = (1 - currRayDist / DRAW_DISTANCE) * Gdx.graphics.getHeight();
             float xOffset = Gdx.graphics.getWidth() / 2f;
             Rectangle rectangle = new CenteredRectangle(xOffset + i * pixelsOfEachCol + pixelsOfEachCol / 2,
                     Gdx.graphics.getHeight() / 2f, pixelsOfEachCol, rectangleHeight);
@@ -192,6 +198,133 @@ public class GameScreen implements Screen {
             fpsCounterInterval += delta;
         }
     }
+
+    void castRayDDAAlgo(Vector2 sPos, Vector2 ePos, int rayIndex, float angleBetweenCameraAndRay) {
+        Vector2 startPos = sPos.cpy();
+        Vector2 endPos = ePos.cpy();
+
+        // Find the normalized direction of the ray
+        Vector2 rayDir = endPos.cpy().sub(startPos).nor();
+
+        game.batch.begin();
+        game.drawer.setColor(Color.CYAN);
+        game.drawer.line(startPos, startPos.cpy().add(rayDir.cpy().scl(10)));
+        game.batch.end();
+
+        // Find angle from direction vector
+        float angle = (float)(Math.atan2(rayDir.y, rayDir.x));
+
+        // Find the tile on which the player is
+        // Using this vector find the grid position of the ray
+        int posX = (int)(startPos.x / cellSize.x);
+        int posY = (int)(startPos.y / cellSize.y);
+
+        // If it goes out of screen for X or Y axis stop going further
+        if(posX < 0) posX = 0; if(posX > mapSize.x - 1) posX = (int)mapSize.x - 1;
+        if(posY < 0) posY = 0; if(posY > mapSize.y - 1) posY = (int)mapSize.y - 1;
+
+        int cellPos = (int)(posY * mapSize.x + posX);
+
+        // Find on X direction where does the ray touches
+        // the boundary of next cell
+
+        // If dir.x > 0 then the ray is cast towards the right part of the map
+        // Knowing the tile that the player is currently then we can find
+        // the right barrier of it
+
+        float currLenDeltaX;
+        float currLenDeltaY;
+
+        float stepDeltaX = (float)Math.abs(cellSize.x / Math.cos(angle));
+        float stepDeltaY = (float)Math.abs(cellSize.y / Math.sin(angle));
+
+//        System.out.println("stepDeltaX=" + stepDeltaX + " - stepDeltaY=" + stepDeltaY);
+        // Make 1st selection
+        if(rayDir.x > 0) {
+            float rightBarrier = cellSize.x * (posX + 1);
+            float deltaX = rightBarrier - startPos.x;
+            currLenDeltaX = deltaX / (float)Math.cos(angle);
+        }
+        else {
+            float leftBarrier = cellSize.x * posX;
+            float deltaX = leftBarrier - startPos.x;
+            currLenDeltaX = deltaX / (float)Math.cos(angle);
+        }
+
+        // Make the same for y now
+        if(rayDir.y > 0) {
+            float downBarrier = cellSize.y * (posY + 1);
+            float deltaY = downBarrier - startPos.y;
+            currLenDeltaY = deltaY / (float)Math.sin(angle);
+        }
+        else {
+            float topBarrier = cellSize.y * posY;
+            float deltaY = topBarrier - startPos.y;
+            currLenDeltaY = deltaY / (float)Math.sin(angle);
+        }
+
+
+        boolean hit = false;
+        boolean movedOnXAxis = false;
+        Vector2 rayEndPos = new Vector2();
+
+        // Keep track of the previous step in order to remove it
+        // while drawing the intersection point
+        float lastMoveStep;
+
+        while(!hit) {
+            if(currLenDeltaX < currLenDeltaY) {
+                // Move delta X
+                currLenDeltaX += stepDeltaX;
+                if(rayDir.x > 0) posX++;
+                else posX--;
+                movedOnXAxis = true;
+            }
+            else {
+                // Move delta Y
+                currLenDeltaY += stepDeltaY;
+                if(rayDir.y > 0) posY++;
+                else posY--;
+                movedOnXAxis = false;
+            }
+
+            // Check for collisions with walls
+            int currCellPos = (int)(posY * mapSize.x + posX);
+            if(map[currCellPos] > 0) {
+                hit = true;
+                if(movedOnXAxis) {
+                    // Calculate intersection based on currLenDeltaX
+                    rayEndPos = startPos.cpy().add(rayDir.cpy().scl(currLenDeltaX - stepDeltaX));
+                    rayDistances[rayIndex] = (currLenDeltaX - stepDeltaX) *
+                            (float)Math.cos(Math.toRadians(angleBetweenCameraAndRay));;
+                }
+                else {
+                    // Calculate intersection based on currLenDeltaY
+                    rayEndPos = startPos.cpy().add(rayDir.cpy().scl(currLenDeltaY - stepDeltaY));
+                    rayDistances[rayIndex] = (currLenDeltaY - stepDeltaY) *
+                            (float)Math.cos(Math.toRadians(angleBetweenCameraAndRay));;
+                }
+                rayValues[rayIndex] = map[(int)(posY * mapSize.x + posX)];
+            }
+        }
+
+        if(hit) {
+            // Draw line
+            game.batch.begin();
+            game.drawer.setColor(Color.WHITE);
+            game.drawer.line(startPos, rayEndPos);
+            game.batch.end();
+        }
+
+        // Draw yellow circles if space bar is clicked
+        if(isDrawingLineBetweenPlayerAndMouse && hit) {
+            game.batch.begin();
+            game.drawer.setColor(Color.YELLOW);
+            game.drawer.circle(rayEndPos.x, rayEndPos.y, cellSize.x / 4);
+            game.batch.end();
+        }
+    }
+
     void castRaySlowAlgo(Vector2 sPos, Vector2 ePos, int index, float angleBetweenCameraAndRay) {
         // Index represents the index of
         // the current ray that is calculated
