@@ -11,6 +11,8 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import space.earlygrey.shapedrawer.ShapeDrawer;
 
+import java.io.IOException;
+
 public class RayCasting extends Game {
     protected PolygonSpriteBatch batch;
     private Texture whitePixel;
@@ -46,7 +48,11 @@ public class RayCasting extends Game {
 		// Initialize skin item
 		skin = new Skin(Gdx.files.internal("ui/uiskin.json"));
 
-		this.setScreen(new GameScreen(this));
+		try {
+			this.setScreen(new GameScreen(this));
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	@Override

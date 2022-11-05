@@ -126,7 +126,7 @@ public class MainScreen implements Screen {
 //        debugLabel.setText("Debug Label\n\t" + "Viewport Width: " + fitViewport.getScreenWidth() +
 //                "\n\tViewport Height: " + fitViewport.getScreenHeight() + "\n\tViewport Aspect Ratio: " +
 //                1.0f * fitViewport.getScreenWidth() / fitViewport.getScreenHeight());
-        debugLabel.setText("Grid width = " + GridSetup.GRID_WIDTH + "\nGrid height = " + GridSetup.GRID_HEIGHT);
+//        debugLabel.setText("Grid width = " + GridSetup.GRID_WIDTH + "\nGrid height = " + GridSetup.GRID_HEIGHT);
 
         // Apply viewport for GUI
         screenViewport.apply();
