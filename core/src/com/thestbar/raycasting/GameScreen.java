@@ -3,9 +3,9 @@ package com.thestbar.raycasting;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
-import com.badlogic.gdx.graphics.Color;
-import com.badlogic.gdx.graphics.OrthographicCamera;
-import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.*;
+import com.badlogic.gdx.graphics.g2d.Sprite;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.ScreenUtils;
@@ -20,18 +20,17 @@ public class GameScreen implements Screen {
     private Vector2 playerDir = new Vector2(1, 0);
     private float playerMovementSpeed = 100;
     private float playerRotationMovementSpeed = 150;
-    private Vector2 mapSize = new Vector2(16, 15);
-    private Vector2 cellSize = new Vector2(40, 40);
-    // TODO - Remove dependency from initializing array (handle DDA ray caster not to error if ray out of bounds
+    private Vector2 mapSize = new Vector2(24, 24);
+    private Vector2 cellSize = new Vector2(30, 30);
     private int[] map = new int[(int)(mapSize.x * mapSize.y)];
     private Vector2 mouse;
     private boolean isDrawingRayIntersections;
-    private final int NUM_OF_RAYS = 1000;
+    private final int NUM_OF_RAYS = Gdx.graphics.getWidth() / 2;
     private final float SLOW_RAY_CASTER_DELTA_DISTANCE = 1f;
     private final float FOV = 50;
     private float fpsCounterInterval = 0;
     private final float UPDATE_FPS_INTERVAL = 1;
-    private final String LEVEL_MAP_PATH = "./assets/levelMaps/Level1_Map.txt"; // Contains the Path to current level
+    private final String LEVEL_MAP_PATH = "./assets/levelMaps/Level2_Map.txt"; // Contains the Path to current level
     private final int NUMBER_OF_TEXTURES = 11;
     private Texture[] textures;
     private final int TEXTURE_WIDTH = 64;
@@ -159,9 +158,6 @@ public class GameScreen implements Screen {
 
             currRayDir.rotateDeg(rayStep);
         }
-
-        // Test textures
-        test();
     }
 
     void countFps(float delta) {
@@ -239,6 +235,9 @@ public class GameScreen implements Screen {
 
         // Perpendicular ray distance from player is stored here
         float perpRayDistance = 0;
+        
+        // Euclidean ray distance from player is stored here
+        float euclRayDistance = 0;
 
         // Boolean variable that knows if the ray hit a wall on X or Y axis
         boolean rayHitSideValue = false;
@@ -275,29 +274,21 @@ public class GameScreen implements Screen {
                 if(movedOnXAxis) {
                     // Calculate intersection based on currLenDeltaX
                     rayEndPos = startPos.cpy().add(rayDir.cpy().scl(currLenDeltaX - stepDeltaX));
-                    perpRayDistance = (currLenDeltaX - stepDeltaX) *
+                    euclRayDistance = (currLenDeltaX - stepDeltaX);
+                    perpRayDistance = euclRayDistance *
                             (float)Math.cos(Math.toRadians(angleBetweenCameraAndRay));
                     rayHitSideValue = true;
                 }
                 else {
                     // Calculate intersection based on currLenDeltaY
                     rayEndPos = startPos.cpy().add(rayDir.cpy().scl(currLenDeltaY - stepDeltaY));
-                    perpRayDistance = (currLenDeltaY - stepDeltaY) *
+                    euclRayDistance = (currLenDeltaY - stepDeltaY);
+                    perpRayDistance = euclRayDistance *
                             (float)Math.cos(Math.toRadians(angleBetweenCameraAndRay));
-                    rayHitSideValue = false;
                 }
 
                 // Save the type of the wall that was hit
                 rayValue = map[(int)(posY * mapSize.x + posX)];
-
-                // Find the distance of the position where the ray hit the wall
-                // from top (if hit on side) or from right if hit form up or down
-                if(rayHitSideValue) {
-                    rayTexturePosition = rayEndPos.y - cellSize.y * rayIndex;
-                }
-                else {
-                    rayTexturePosition = cellSize.x * rayIndex - rayEndPos.x;
-                }
             }
         }
 
@@ -319,7 +310,7 @@ public class GameScreen implements Screen {
         }
 
         // Draw 3D screen
-        drawScreen3D(rayHitSideValue, perpRayDistance, rayIndex, rayValue);
+        drawScreen3D(rayHitSideValue, perpRayDistance, rayIndex, rayValue, euclRayDistance, rayDir, posX, posY);
 
     }
 
@@ -339,9 +330,6 @@ public class GameScreen implements Screen {
         // where (x0, y0) can be start or end position
         float slope = dir.y / dir.x;
 
-        // Find the distance between start and end
-        float distance = 1000;
-
         // For this delta distance, calculate
         // delta movement on X axis
         float deltaX = (float)Math.cos(angle) * SLOW_RAY_CASTER_DELTA_DISTANCE;
@@ -355,6 +343,13 @@ public class GameScreen implements Screen {
 
         // Holds the perpendicular distance of the ray from the camera pane
         float perpRayDistance = 0;
+
+        // Holds the euclidean distance of the ray from the camera pane
+        float euclRayDistance = 0;
+
+        // Grid current position of the ray
+        int gridX = 0;
+        int gridY = 0;
 
         // Holds the value of the cell that was hit by the ray (and was a wall)
         int rayValue = 0;
@@ -370,9 +365,9 @@ public class GameScreen implements Screen {
             // Create a vector for the current position
             Vector2 point = new Vector2(currX, currY);
 
-            // Using this vector find the grid position of the ray
-            int gridX = (int)(point.x / cellSize.x);
-            int gridY = (int)(point.y / cellSize.y);
+            // Using this vector to find the grid position of the ray
+            gridX = (int)(point.x / cellSize.x);
+            gridY = (int)(point.y / cellSize.y);
 
             // If it goes out of screen for X or Y axis stop going further
             if(gridX < 0) gridX = 0; if(gridX > mapSize.x - 1) gridX = (int)mapSize.x - 1;
@@ -395,14 +390,26 @@ public class GameScreen implements Screen {
             }
         }
 
+        // We know that ray hit cell at [gridX, gridY];
+        // Find the borders of this cell and check if the intersection is
+        // on up or down border which means that it did not hit a side
+        float pixDelta = 1;
+        float upBorder = cellSize.y * gridY;
+        float downBorder = cellSize.y * (gridY + 1);
+
+        boolean rayHitSideValue = (!(intersection.y > upBorder - pixDelta) || !(intersection.y < upBorder + pixDelta)) &&
+                (!(intersection.y > downBorder - pixDelta) || !(intersection.y < downBorder + pixDelta));
+
+
         // Store the distance between the starting position
         // and the intersection on the specific index in the array
         // In order to fix fish-eye-effect instead of using
         // the euclidean distance we have to multiply it
         // by the cosine of the angle between the current ray
         // and the direction of the camera
-        perpRayDistance = intersection.dst(startPos) *
-                (float)Math.cos(Math.toRadians(angleBetweenCameraAndRay));
+        // Also store the euclidean distance
+        euclRayDistance = intersection.dst(startPos);
+        perpRayDistance = euclRayDistance * (float)Math.cos(Math.toRadians(angleBetweenCameraAndRay));
 
         // Draw ray
         game.batch.begin();
@@ -410,7 +417,7 @@ public class GameScreen implements Screen {
         game.drawer.line(startPos, intersection);
         game.batch.end();
 
-        // Draw the ray if wall has been hit
+        // Draw the ray intersection if wall has been hit
         if(isDrawingRayIntersections && hitWall) {
             game.batch.begin();
             game.drawer.setColor(Color.YELLOW);
@@ -418,10 +425,11 @@ public class GameScreen implements Screen {
             game.batch.end();
         }
 
-        drawScreen3D(true, perpRayDistance, index, rayValue);
+        // Draw 3D screen
+        drawScreen3D(rayHitSideValue, perpRayDistance, index, rayValue, euclRayDistance, rayDir, gridX, gridY);
     }
 
-    void drawScreen3D(boolean rayHitSideValue, float perpRayDistance, int rayIndex, int rayValue) {
+    void drawScreen3D(boolean rayHitSideValue, float perpRayDistance, int rayIndex, int rayValue, float euclRayDistance, Vector2 rayDir, int rayPosX, int rayPosY) {
         // Calculate the number of pixels that each column of the 3D contains
         float pixelsOfEachCol = Gdx.graphics.getWidth() / 2f / NUM_OF_RAYS;
 
@@ -433,7 +441,7 @@ public class GameScreen implements Screen {
         // This is calculated by dividing the maximum height of the screen
         // by the perpendicular distance of the intersection from the camera pane
         // Also, we multiply this by a final variable, to make the walls higher
-        float rectangleHeight = 70 * Gdx.graphics.getHeight() / perpRayDistance;
+        float rectangleHeight = 30 * Gdx.graphics.getHeight() / perpRayDistance;
 
         // Offset on the X-Axis of the screen is calculated
         // (This applies only when both 2D and 3D worlds are drawn
@@ -451,30 +459,46 @@ public class GameScreen implements Screen {
         Rectangle floorRectangle = new Rectangle(xOffset + rayIndex * pixelsOfEachCol,
                 rectangle.y + rectangle.height, pixelsOfEachCol, (Gdx.graphics.getHeight() - rectangleHeight) / 2f);
 
-        // Select the screen color based on the map value
-        Color color;
-        switch(rayValue) {
-            case 1: { color = new Color(Color.BLUE); break; }
-            case 2: { color = new Color(Color.RED); break; }
-            case 3: { color = new Color(Color.YELLOW); break; }
-            case 4: { color = new Color(Color.GREEN); break; }
-            default: { color = new Color(Color.WHITE); }
-        }
-
-        // Apply the appropriate alpha value
-        color.a = alpha;
-
-        float textureScaleFactor = rectangleHeight / 64f;
-
-        // Draw the rectangles in the 3D screen
+        // Draw the rectangles in the 3D screen for floor and ceiling
         game.batch.begin();
-        game.drawer.setColor(color);
-        game.drawer.filledRectangle(rectangle);
         game.drawer.setColor(Color.DARK_GRAY);
         game.drawer.filledRectangle(floorRectangle);
-        game.drawer.setColor(Color.LIGHT_GRAY);
+        game.drawer.setColor(Color.BROWN);
         game.drawer.filledRectangle(ceilingRectangle);
         game.batch.end();
+
+        // Removing 1 because value 0 means that
+        // we do not draw anything and value 1 is the
+        // corresponding value for texture at index 0
+        int textureIndex = rayValue - 1;
+
+        // Calculate where exactly the wall was hit
+        float distanceFromEdgeRatio;
+
+        // Find intersection between ray and wall
+        Vector2 intersection = player.cpy().add(rayDir.cpy().scl(euclRayDistance));
+
+        if(rayHitSideValue) {
+            // Find distance from top
+            float topY = rayPosY * cellSize.y;
+            distanceFromEdgeRatio = (intersection.y - topY) / cellSize.y;
+        }
+        else {
+            // Find distance from right
+            float topX = (rayPosX + 1) * cellSize.x;
+            distanceFromEdgeRatio = (topX - intersection.x) / cellSize.x;
+        }
+
+        // Calculate X coordinate on the texture
+        int texX = (int)(distanceFromEdgeRatio * TEXTURE_WIDTH);
+
+        TextureRegion wallRegion = new TextureRegion(textures[textureIndex], texX, 0, Gdx.graphics.getWidth() / (2 * NUM_OF_RAYS), 64);
+
+        game.batch.begin();
+        game.batch.setColor(1, 1, 1, alpha);
+        game.batch.draw(wallRegion, rectangle.x, rectangle.y, rectangle.width, rectangle.height);
+        game.batch.end();
+
     }
 
     void drawMap2D() {
@@ -482,15 +506,23 @@ public class GameScreen implements Screen {
             for(int x = 0; x < mapSize.x; x++) {
                 int cell = map[(int) (y * mapSize.x + x)];
                 game.batch.begin();
-                // If cell has value 1 draw a color inside it
+                // If cell has value bigger than 0, draw a color inside it
                 if(cell == 1)
-                    game.drawer.filledRectangle(x * cellSize.x, y * cellSize.y, cellSize.x, cellSize.y, Color.BLUE);
+                    game.drawer.filledRectangle(x * cellSize.x, y * cellSize.y, cellSize.x, cellSize.y, Color.ORANGE);
                 else if(cell == 2)
                     game.drawer.filledRectangle(x * cellSize.x, y * cellSize.y, cellSize.x, cellSize.y, Color.RED);
                 else if(cell == 3)
-                    game.drawer.filledRectangle(x * cellSize.x, y * cellSize.y, cellSize.x, cellSize.y, Color.YELLOW);
+                    game.drawer.filledRectangle(x * cellSize.x, y * cellSize.y, cellSize.x, cellSize.y, Color.PURPLE);
                 else if(cell == 4)
-                    game.drawer.filledRectangle(x * cellSize.x, y * cellSize.y, cellSize.x, cellSize.y, Color.GREEN);
+                    game.drawer.filledRectangle(x * cellSize.x, y * cellSize.y, cellSize.x, cellSize.y, Color.GRAY);
+                else if(cell == 5)
+                    game.drawer.filledRectangle(x * cellSize.x, y * cellSize.y, cellSize.x, cellSize.y, Color.BLUE);
+                else if(cell == 6)
+                    game.drawer.filledRectangle(x * cellSize.x, y * cellSize.y, cellSize.x, cellSize.y, Color.YELLOW);
+                else if(cell == 7)
+                    game.drawer.filledRectangle(x * cellSize.x, y * cellSize.y, cellSize.x, cellSize.y, Color.BROWN);
+                else if(cell == 8)
+                    game.drawer.filledRectangle(x * cellSize.x, y * cellSize.y, cellSize.x, cellSize.y, Color.MAROON);
                 // Draw cell boundary
                 game.drawer.rectangle(x * cellSize.x, y * cellSize.y, cellSize.x, cellSize.y, Color.DARK_GRAY);
                 game.batch.end();
@@ -515,7 +547,7 @@ public class GameScreen implements Screen {
             // Check if position with only x added is valid
             playerNewPositionCell = new Vector2((float)Math.floor(playerPositionCpy.x / cellSize.x),
                     (float)Math.floor(playerPositionCpy.y / cellSize.y));
-            if(map[(int)(playerNewPositionCell.y * mapSize.x + playerNewPositionCell.x)] == 0) {
+            if(map[(int)(playerNewPositionCell.y * mapSize.x + playerNewPositionCell.x)] <= 0) {
                 player = playerPositionCpy;
             }
             // If new position is invalid and
@@ -553,35 +585,17 @@ public class GameScreen implements Screen {
 
     void loadTextures() {
         textures = new Texture[NUMBER_OF_TEXTURES];
-        textures[0] = new Texture(Gdx.files.internal("textures/greystone.png"));
-        textures[1] = new Texture(Gdx.files.internal("textures/bluestone.png"));
-        textures[2] = new Texture(Gdx.files.internal("textures/colorstone.png"));
-        textures[3] = new Texture(Gdx.files.internal("textures/redbrick.png"));
-        textures[4] = new Texture(Gdx.files.internal("textures/purplestone.png"));
-        textures[5] = new Texture(Gdx.files.internal("textures/eagle.png"));
-        textures[6] = new Texture(Gdx.files.internal("textures/mossy.png"));
-        textures[7] = new Texture(Gdx.files.internal("textures/wood.png"));
+        textures[0] = new Texture(Gdx.files.internal("textures/eagle.png"));
+        textures[1] = new Texture(Gdx.files.internal("textures/redbrick.png"));
+        textures[2] = new Texture(Gdx.files.internal("textures/purplestone.png"));
+        textures[3] = new Texture(Gdx.files.internal("textures/greystone.png"));
+        textures[4] = new Texture(Gdx.files.internal("textures/bluestone.png"));
+        textures[5] = new Texture(Gdx.files.internal("textures/mossy.png"));
+        textures[6] = new Texture(Gdx.files.internal("textures/wood.png"));
+        textures[7] = new Texture(Gdx.files.internal("textures/colorstone.png"));
         textures[8] = new Texture(Gdx.files.internal("textures/pillar.png"));
         textures[9] = new Texture(Gdx.files.internal("textures/greenlight.png"));
         textures[10] = new Texture(Gdx.files.internal("textures/barrel.png"));
-
-//        for(Texture texture: textures) {
-//            Pixmap pixmapOriginal = new Pixmap(Gdx.files.internal("textures/greystone.png"));
-//            Pixmap pixmapScaled = new Pixmap(300, 100, pixmapOriginal.getFormat());
-//            pixmapScaled.drawPixmap(pixmapOriginal,
-//                    0, 0, pixmapOriginal.getWidth(), pixmapOriginal.getHeight(),
-//                    0, 0, pixmapScaled.getWidth(), pixmapScaled.getHeight()
-//            );
-//            textures[5] = new Texture(pixmapScaled);
-//            pixmapOriginal.dispose();
-//            pixmapScaled.dispose();
-//        }
-    }
-
-    private void test() {
-        game.batch.begin();
-        game.batch.draw(textures[5], 0, 0);
-        game.batch.end();
     }
 
     @Override
