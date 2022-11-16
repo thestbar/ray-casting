@@ -4,24 +4,25 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.*;
-import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.ScreenUtils;
+import com.thestbar.raycasting.util.ByteBufferHandler;
 import com.thestbar.raycasting.util.CenteredRectangle;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 public class GameScreen implements Screen {
     private final RayCasting game;
-    private OrthographicCamera camera;
+    private final OrthographicCamera camera;
     private Vector2 player = new Vector2(300, 40);
-    private Vector2 playerDir = new Vector2(1, 0);
+    private final Vector2 playerDir = new Vector2(1, 0);
     private float playerMovementSpeed = 100;
     private float playerRotationMovementSpeed = 150;
-    private Vector2 mapSize = new Vector2(24, 24);
-    private Vector2 cellSize = new Vector2(30, 30);
+    private final Vector2 mapSize = new Vector2(24, 24);
+    private final Vector2 cellSize = new Vector2(30, 30);
     private int[] map = new int[(int)(mapSize.x * mapSize.y)];
     private Vector2 mouse;
     private boolean isDrawingRayIntersections;
@@ -30,7 +31,7 @@ public class GameScreen implements Screen {
     private final float FOV = 50;
     private float fpsCounterInterval = 0;
     private final float UPDATE_FPS_INTERVAL = 1;
-    private final String LEVEL_MAP_PATH = "./assets/levelMaps/Level2_Map.txt"; // Contains the Path to current level
+    private final String LEVEL_MAP_PATH = "./assets/levelMaps/Level3_Map.txt"; // Contains the Path to current level
     private final int NUMBER_OF_TEXTURES = 11;
     private Texture[] textures;
     private final int TEXTURE_WIDTH = 64;
@@ -38,6 +39,15 @@ public class GameScreen implements Screen {
     // If 0 then DDA Algorithm is used
     // If 1 then Slow Algorithm is used
     private int rayCaster = 0;
+    private Pixmap backgroundPixmap;
+    private Texture backgroundTexture;
+    private final int FLOOR_TEX_INDEX = 3;
+    private final int CEIL_TEX_INDEX = 6;
+    private final Pixmap floorPixmap;
+    private final Pixmap ceilingPixmap;
+    private final int[] floorAndCeilingPixelsData;
+    private final ByteBuffer floorAndCeilingByteBuffer;
+    private final Color floorAndCeilingFilterColor = new Color(0.7f, 0.7f, 0.7f, 1);
 
     public GameScreen(RayCasting game) throws IOException {
         this.game = game;
@@ -60,6 +70,23 @@ public class GameScreen implements Screen {
 
         // Initialize map
         initializeMap();
+
+        // Initialize pix-maps for ceiling and floor
+        if (!textures[FLOOR_TEX_INDEX].getTextureData().isPrepared()) {
+            textures[FLOOR_TEX_INDEX].getTextureData().prepare();
+        }
+        floorPixmap = textures[FLOOR_TEX_INDEX].getTextureData().consumePixmap();
+
+        if (!textures[CEIL_TEX_INDEX].getTextureData().isPrepared()) {
+            textures[CEIL_TEX_INDEX].getTextureData().prepare();
+        }
+        ceilingPixmap = textures[CEIL_TEX_INDEX].getTextureData().consumePixmap();
+
+        backgroundPixmap = new Pixmap(Gdx.graphics.getWidth() / 2, Gdx.graphics.getHeight(), Pixmap.Format.RGBA8888);
+
+        // Initialize int array and byte buffer that are used to draw ceiling and floor
+        floorAndCeilingPixelsData = new int[Gdx.graphics.getHeight() * Gdx.graphics.getWidth() / 2];
+        floorAndCeilingByteBuffer = ByteBuffer.allocateDirect(floorAndCeilingPixelsData.length * 4);
     }
 
     @Override
@@ -127,6 +154,9 @@ public class GameScreen implements Screen {
 
         ScreenUtils.clear(0, 0, 0, 1);
 
+        // On each frame clear bytebuffer that is used for ceiling and floor
+        floorAndCeilingByteBuffer.clear();
+
         game.batch.setProjectionMatrix(camera.combined);
 
         input(delta);
@@ -139,6 +169,8 @@ public class GameScreen implements Screen {
 
         // Draw mouse
         drawMouse2D();
+
+        drawFloorAndCeiling3D();
 
         // Cast rays
         // When you know the origin point the length of the line and the direction
@@ -451,22 +483,6 @@ public class GameScreen implements Screen {
         Rectangle rectangle = new CenteredRectangle(xOffset + rayIndex * pixelsOfEachCol + pixelsOfEachCol / 2,
                 Gdx.graphics.getHeight() / 2f, pixelsOfEachCol, rectangleHeight);
 
-        // Create the ceiling rectangle (above the wall)
-        Rectangle ceilingRectangle = new Rectangle(xOffset + rayIndex * pixelsOfEachCol,
-                0, pixelsOfEachCol, (Gdx.graphics.getHeight() - rectangleHeight) / 2f);
-
-        // Create the floor rectangle (below the wall)
-        Rectangle floorRectangle = new Rectangle(xOffset + rayIndex * pixelsOfEachCol,
-                rectangle.y + rectangle.height, pixelsOfEachCol, (Gdx.graphics.getHeight() - rectangleHeight) / 2f);
-
-        // Draw the rectangles in the 3D screen for floor and ceiling
-        game.batch.begin();
-        game.drawer.setColor(Color.DARK_GRAY);
-        game.drawer.filledRectangle(floorRectangle);
-        game.drawer.setColor(Color.BROWN);
-        game.drawer.filledRectangle(ceilingRectangle);
-        game.batch.end();
-
         // Removing 1 because value 0 means that
         // we do not draw anything and value 1 is the
         // corresponding value for texture at index 0
@@ -495,10 +511,76 @@ public class GameScreen implements Screen {
         TextureRegion wallRegion = new TextureRegion(textures[textureIndex], texX, 0, Gdx.graphics.getWidth() / (2 * NUM_OF_RAYS), 64);
 
         game.batch.begin();
-        game.batch.setColor(1, 1, 1, alpha);
+        game.batch.setColor(alpha, alpha, alpha, 1);
         game.batch.draw(wallRegion, rectangle.x, rectangle.y, rectangle.width, rectangle.height);
         game.batch.end();
 
+    }
+
+    void drawFloorAndCeiling3D() {
+        int posX = (int)(player.x / cellSize.x);
+        int posY = (int)(player.y / cellSize.y);
+        int offX = (int)((player.x / cellSize.x - posX) * TEXTURE_WIDTH);
+        int offY = (int)((player.y / cellSize.y - posY) * TEXTURE_HEIGHT);
+
+        for(int y = 0; y < Gdx.graphics.getHeight(); y++) {
+            // Ray direction for left most and right most rays
+            Vector2 rayDir0 = playerDir.cpy().rotateDeg(-FOV / 2);
+            Vector2 rayDir1 = playerDir.cpy().rotateDeg(FOV / 2);
+
+            // Current y position compared to the center of the screen
+            int p = y - Gdx.graphics.getHeight() / 2;
+
+            // Vertical position of the camera
+            float posZ = 0.5f * Gdx.graphics.getHeight();
+
+            // Horizontal distance from the camera to the floor for the current row
+            // 0.5 is the z position exactly in the middle between floor and ceiling
+            float rowDistance = posZ / p;
+
+            // Calculate the real world step vector we have to add for each x (parallel to camera plane)
+            // adding step by step avoids multiplications with a weight in the inner loop
+            float floorStepX = rowDistance * (rayDir1.x - rayDir0.x) / (Gdx.graphics.getWidth() / 2f);
+            float floorStepY = rowDistance * (rayDir1.y - rayDir0.y) / (Gdx.graphics.getWidth() / 2f);
+
+            // Real world coordinates of the leftmost column. This will be updated as we step to the right
+            float floorX = posX + rowDistance * rayDir0.x;
+            float floorY = posY + rowDistance * rayDir0.y;
+
+            for(int x = Gdx.graphics.getWidth() / 2; x < Gdx.graphics.getWidth(); ++x)
+            {
+                // The cell coordinate is simply got from the integer parts of floorX and floorY
+                int cellX = (int)(floorX);
+                int cellY = (int)(floorY);
+
+                if((y >= Gdx.graphics.getHeight() / 2)) { // Drawing ceiling
+                    // Get the texture coordinate from the fractional part
+                    int tx = offX + (int)(TEXTURE_WIDTH * (floorX - cellX)) & (TEXTURE_WIDTH - 1);
+                    int ty = offY + (int)(TEXTURE_HEIGHT * (floorY - cellY)) & (TEXTURE_HEIGHT - 1);
+                    floorAndCeilingPixelsData[y * Gdx.graphics.getWidth() / 2 + x - Gdx.graphics.getWidth() / 2] =
+                            ceilingPixmap.getPixel(tx, ty);
+                }
+                else { // Drawing floor
+                    // Get the texture coordinate from the fractional part
+                    int tx = -offX + (int)(TEXTURE_WIDTH * (floorX - cellX)) & (TEXTURE_WIDTH - 1);
+                    int ty = -offY + (int)(TEXTURE_HEIGHT * (floorY - cellY)) & (TEXTURE_HEIGHT - 1);
+                    floorAndCeilingPixelsData[y * Gdx.graphics.getWidth() / 2 + x - Gdx.graphics.getWidth() / 2] =
+                            floorPixmap.getPixel(tx, ty);
+                }
+
+                floorX += floorStepX;
+                floorY += floorStepY;
+            }
+        }
+
+        ByteBufferHandler.put_ints(floorAndCeilingByteBuffer, floorAndCeilingPixelsData);
+        backgroundPixmap.setPixels(floorAndCeilingByteBuffer);
+        backgroundTexture = new Texture(backgroundPixmap);
+
+        game.batch.begin();
+        game.batch.setColor(floorAndCeilingFilterColor);
+        game.batch.draw(backgroundTexture, Gdx.graphics.getWidth() / 2f, 0);
+        game.batch.end();
     }
 
     void drawMap2D() {
@@ -623,5 +705,9 @@ public class GameScreen implements Screen {
         for(Texture texture: textures) {
             texture.dispose();
         }
+        backgroundPixmap.dispose();
+        backgroundTexture.dispose();
+        ceilingPixmap.dispose();
+        floorPixmap.dispose();
     }
 }
