@@ -6,22 +6,6 @@ import java.nio.IntBuffer;
 public class ByteBufferHandler {
     static final int bytes_per_datum = 4;
 
-//    public static void main(String args[]) {
-//        main2("Native Endian", ByteOrder.nativeOrder());
-//        main2("Big Endian", ByteOrder.BIG_ENDIAN);
-//        main2("Little Endian", ByteOrder.LITTLE_ENDIAN);
-//    }
-//
-//    static void main2(String comment, ByteOrder endian) {
-//        int[] data = { 1, 0xF, 0xFF, 0xFFF, 0xFFFF, 0xFFFFF, 0xFFFFFF, 0xFFFFFFF, 0xFFFFFFFF };
-//        ByteBuffer bb = ByteBuffer.allocateDirect(data.length * bytes_per_datum);
-//        bb.order(endian); // endian must be set before putting ints into the buffer
-//        put_ints(bb, data);
-//
-//        System.out.println(comment + ": ");
-//        print(bb);
-//    }
-
     public static void put_ints(ByteBuffer byteBuffer, int[] data) {
         IntBuffer intBuffer = byteBuffer.asIntBuffer(); // created IntBuffer starts only from the ByteBuffer's relative position
         // if you plan to reuse this IntBuffer, be mindful of its position
